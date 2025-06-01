@@ -28,7 +28,9 @@ def construct_reward_prompt(client_question: str, chatbot_a_code: str, generated
         truncated_generated_code = generated_code[:max_chars_generated_code] + "\\n...[TRUNCATED CODE]"
 
     # Ensure the instruction for the reward model is clear and strict about the expected output format.
-    prompt = f"""[INST] You are an expert in web accessibility, focusing on WCAG 2.1 and WCAG 3.0 standards.
+    prompt = f"""[INST] Evaluate the accessibility of the "Generated Code" based on the "Client Question", "Chatbot A's Code", and the specified "Accessibility Category".
+Focus on WCAG 2.1/3.0 principles for the category: '{category}'.
+
 Client Question:
 {truncated_client_question}
 
@@ -42,18 +44,16 @@ Generated Code (to be evaluated):
 {truncated_generated_code}
 ```
 
-Based on the Client Question and Chatbot A's Code, critically evaluate the accessibility of the "Generated Code".
-Pay specific attention to the accessibility category: '{category}'.
-Consider aspects like semantic HTML, ARIA usage, keyboard navigation, focus management, color contrast (if applicable from code), and overall adherence to WCAG principles for the given category.
+Accessibility Category: {category}
 
-Your response MUST be one of the following exact qualitative labels and nothing else:
+Your task is to provide ONLY ONE of the following qualitative labels. Do NOT add any other text, explanation, or formatting.
 - "Excellent Accessibility"
 - "Good Accessibility"
 - "Minor Accessibility Issues"
 - "Significant Accessibility Issues"
 - "Poor Accessibility"
 
-Assessment: [/INST]"""
+Label: [/INST]"""
     return prompt
 
 def parse_reward_model_output(text_output: str, reward_mapping: dict) -> int:
@@ -131,7 +131,7 @@ def calculate_accessibility_reward(
         reward_sampling_params = {
             "temperature": 0.1, 
             "top_p": 0.9, 
-            "max_tokens": 4096, # Significantly reduced for concise label output (maps to max_new_tokens for client)
+            "max_tokens": 20, # Reduced for concise label output
             "stop": ["\n", "<|im_end|>", "<|endoftext|>"], 
             # "do_sample" is not an OpenAI API parameter; temperature controls sampling.
             # The client will use these for the OpenAI /v1/completions payload.

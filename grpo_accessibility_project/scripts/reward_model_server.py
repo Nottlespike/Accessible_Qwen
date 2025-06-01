@@ -9,7 +9,7 @@ def start_reward_model_server(
     model_name: str,
     host: str = "localhost",
     port: int = 8001,
-    dtype: str = "bfloat16", # vLLM will use 'auto' or this if specified
+    dtype: str = "fp8", # vLLM will use 'auto' or this if specified
     num_shard: int = 1,    # Corresponds to tensor_parallel_size for vLLM
     max_total_tokens: int = 4096, # vLLM uses max_model_len, often inferred
     shm_size: str = "1g",  # Not directly applicable to vLLM non-Docker
