@@ -12,8 +12,8 @@ def construct_reward_prompt(client_question: str, chatbot_a_code: str, generated
     # Fixed prompt text is ~700 chars. client_question + category ~ a few hundred.
     # Budget for code snippets:
     max_chars_client_question = 1000 
-    max_chars_chatbot_a = 6500
-    max_chars_generated_code = 7000 # Slightly less to be safe with overall length
+    max_chars_chatbot_a = 4000 # Further reduced
+    max_chars_generated_code = 4000 # Further reduced
 
     truncated_client_question = client_question
     if len(client_question) > max_chars_client_question:
@@ -130,10 +130,11 @@ def calculate_accessibility_reward(
         # We want a relatively deterministic, focused output for the assessment label.
         reward_sampling_params = {
             "temperature": 0.1, 
-            "top_p": 0.9, # TGI uses top_p
-            "max_new_tokens": 50, # TGI uses max_new_tokens
-            "stop_sequences": ["\n", "<|im_end|>", "<|endoftext|>"], # TGI uses stop_sequences
-            "do_sample": True # Ensure sampling is enabled for TGI
+            "top_p": 0.9, 
+            "max_tokens": 4096, # Significantly reduced for concise label output (maps to max_new_tokens for client)
+            "stop": ["\n", "<|im_end|>", "<|endoftext|>"], 
+            # "do_sample" is not an OpenAI API parameter; temperature controls sampling.
+            # The client will use these for the OpenAI /v1/completions payload.
         }
 
         # print(f"\n--- Querying Reward Model (Sample {i+1}) ---")
