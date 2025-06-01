@@ -28,7 +28,7 @@ def query_reward_model_server(prompt: str, endpoint_url: str, sampling_params: d
     default_openai_sampling_params = {
         "temperature": 0.1,
         "top_p": 0.9,        # OpenAI API typically uses top_p
-        "max_tokens": 50,    # Renamed from max_new_tokens
+        "max_tokens": 4096,    # Renamed from max_new_tokens
         "stop": ["\n", "<|im_end|>", "<|endoftext|>"], # Renamed from stop_sequences
         # "do_sample" is not an OpenAI API parameter; temperature controls sampling.
         # If temperature is 0 or very low, it's effectively greedy.

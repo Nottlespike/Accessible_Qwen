@@ -227,6 +227,7 @@ def main():
             vllm_sampling_params=grpo_vllm_sampling_params,
             # If not using Unsloth's vLLM integration directly in GRPOTrainer,
             # you might need `generation_kwargs` for HF generate.
+            dataloader_drop_last=True, # Try dropping the last batch if incomplete
         )
 
         # The reward function needs access to the reward_model_endpoint and reward_mapping.

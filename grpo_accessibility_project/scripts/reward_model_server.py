@@ -11,7 +11,7 @@ def start_reward_model_server(
     port: int = 8001,
     dtype: str = "fp8", # vLLM will use 'auto' or this if specified
     num_shard: int = 1,    # Corresponds to tensor_parallel_size for vLLM
-    max_total_tokens: int = 4096, # vLLM uses max_model_len, often inferred
+    max_total_tokens: int = 8192, # vLLM uses max_model_len, often inferred
     shm_size: str = "1g",  # Not directly applicable to vLLM non-Docker
     log_level: str = "info", # vLLM has its own logging, not directly set this way
     target_gpu_id: str = None, # For CUDA_VISIBLE_DEVICES, e.g., "0" or "0,1"
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     parser.add_argument("--dtype", type=str, default="auto", help="Data type for vLLM model (e.g., bfloat16, float16, auto).")
     parser.add_argument("--num_shard", type=int, default=1, help="Number of GPU shards (tensor_parallel_size for vLLM).")
     # max_total_tokens is more of a vLLM --max-model-len, let's not expose it directly unless needed
-    # parser.add_argument("--max_total_tokens", type=int, default=4096, help="Max model length for vLLM.")
+    parser.add_argument("--max_total_tokens", type=int, default=8192, help="Max model length for vLLM.")
     parser.add_argument("--target_gpu_id", type=str, default=None, help="Comma-separated list of GPU ID(s) for vLLM (e.g., '0' or '0,1'). Sets CUDA_VISIBLE_DEVICES.")
     parser.add_argument("--quantize", type=str, default=None, help="Quantization mode for vLLM (e.g. 'awq', 'gptq')")
     
