@@ -132,7 +132,7 @@ def calculate_accessibility_reward(
         gemini_generation_config = {
             "temperature": 0.1,
             "top_p": 0.9,
-            # "max_output_tokens": 10240, # Increased from 50 to align with inference_client.py and allow more room.
+            "max_output_tokens": 28672, # Increased from 50 to align with inference_client.py and allow more room.
             # Stop sequences are handled differently or might not be needed for short, direct answers from Gemini
         }
 
