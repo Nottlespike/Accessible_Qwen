@@ -1,0 +1,18 @@
+# Core ML/RL Libraries
+unsloth
+vllm
+trl
+transformers
+datasets
+accelerate
+peft
+bitsandbytes
+
+# Utility
+pyyaml
+requests
+
+# PyTorch - Unsloth usually handles this, but specify if needed
+# torch
+# torchvision
+# torchaudio

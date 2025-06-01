@@ -1,0 +1,65 @@
+# Model Configurations
+generator_model_name: "unsloth/Qwen3-4B-Base"
+reward_model_name: "gaotang/RM-R1-DeepSeek-Distilled-Qwen-14B"
+reward_model_quantization: "fp8" # Or other vLLM supported quantization
+
+# vLLM Server Configurations
+reward_model_server_host: "localhost"
+reward_model_server_port: 8001 # Ensure this port is free
+# Add generator_model_server_port if running generator via separate vLLM server
+
+# Dataset Path
+dataset_path: "/root/Accessible_Qwen/grpo_accessibility_project/accessibility_dataset.json"
+
+# GRPO Training Hyperparameters
+output_dir: "grpo_accessibility_output"
+logging_steps: 1
+per_device_train_batch_size: 1 # Adjust based on GPU memory
+gradient_accumulation_steps: 4 # Adjust based on GPU memory
+num_generations: 2             # Number of completions to generate per prompt; adjust based on GPU memory
+learning_rate: 5.0e-6
+weight_decay: 0.01
+warmup_ratio: 0.1
+lr_scheduler_type: "linear"
+optim: "adamw_8bit" # Unsloth default
+max_steps: 200 # Adjust for desired training length; start small for testing
+save_steps: 50 # Save checkpoints periodically
+
+# Sequence Lengths (Important: adjust based on dataset analysis and GPU memory)
+# These need to accommodate: system_prompt + client_question + chatbot_A_code + generated_chatbot_B_code
+max_seq_length: 4096  # Max total length for model
+max_prompt_length: 2048 # Max length of the prompt part (system + client_q + chatbot_A)
+max_completion_length: 2048 # Max length of the generated code (chatbot_B)
+
+# LoRA Configuration (for Unsloth generator model)
+lora_rank: 32
+lora_alpha_multiplier: 2 # lora_alpha = lora_rank * lora_alpha_multiplier
+lora_target_modules: [
+    "q_proj", "k_proj", "v_proj", "o_proj",
+    "gate_proj", "up_proj", "down_proj",
+]
+
+# Reward Model Qualitative Mapping
+reward_mapping:
+  "Excellent Accessibility": 10
+  "Good Accessibility": 7
+  "Minor Accessibility Issues": 2
+  "Significant Accessibility Issues": -5
+  "Poor Accessibility": -10
+  "Default": 0 # Fallback score if parsing fails
+
+# Generator System Prompt (a base version, can be refined)
+generator_system_prompt: |
+  You are an expert in web accessibility, WCAG 2.1 and WCAG 3.0 standards, and modern frontend development.
+  You have deep knowledge of:
+  - Semantic HTML and ARIA
+  - Screen reader compatibility
+  - Keyboard navigation patterns
+  - Color contrast requirements
+  - Focus management
+  - Responsive and adaptive design
+  - Accessibility testing tools
+  - Common accessibility anti-patterns
+  Your task is to provide highly accessible code solutions (HTML, CSS, JavaScript) in response to client questions.
+  Given a client question and an example of a less accessible code response (Chatbot A), you must generate a new, complete code response (Chatbot B) that is significantly more accessible and directly addresses the client's requirements, focusing on the specified accessibility category.
+  Ensure your generated code is practical, realistic, educational, and adheres to the highest accessibility standards.
