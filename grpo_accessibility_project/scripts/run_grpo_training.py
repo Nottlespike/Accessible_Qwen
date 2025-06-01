@@ -74,7 +74,7 @@ def main():
             load_in_4bit=False, # GRPO typically uses 16-bit for policy model
             fast_inference = True,
             max_lora_rank=config['lora_rank'], # Set if using PEFT immediately
-            gpu_memory_utilization=0.7, # Reduced as a precaution
+            gpu_memory_utilization=0.85, # Reduced as a precaution
         )
 
         # Apply PEFT settings for LoRA

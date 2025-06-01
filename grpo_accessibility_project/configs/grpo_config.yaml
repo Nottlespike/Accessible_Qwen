@@ -37,9 +37,9 @@ save_steps: 50 # Save checkpoints periodically
 
 # Sequence Lengths (Important: adjust based on dataset analysis and GPU memory)
 # These need to accommodate: system_prompt + client_question + chatbot_A_code + generated_chatbot_B_code
-max_seq_length: 8192  # Max total length for model
-max_prompt_length: 8192 # Max length of the prompt part (system + client_q + chatbot_A)
-max_completion_length: 8192 # Max length of the generated code (chatbot_B)
+max_seq_length: 16384  # Max total length for model
+max_prompt_length: 16384 # Max length of the prompt part (system + client_q + chatbot_A)
+max_completion_length: 16384 # Max length of the generated code (chatbot_B)
 
 # LoRA Configuration (for Unsloth generator model)
 lora_rank: 32
