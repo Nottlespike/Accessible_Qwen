@@ -24,7 +24,7 @@ dataset_path: "/root/Accessible_Qwen/grpo_accessibility_project/accessibility_da
 # GRPO Training Hyperparameters
 output_dir: "grpo_accessibility_output"
 logging_steps: 1
-per_device_train_batch_size: 16 # Adjust based on GPU memory
+per_device_train_batch_size: 8 # Adjust based on GPU memory
 gradient_accumulation_steps: 8 # Adjust based on GPU memory
 num_generations: 8             # Number of completions to generate per prompt; adjust based on GPU memory
 learning_rate: 5.0e-6
