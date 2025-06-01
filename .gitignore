@@ -195,3 +195,4 @@ cython_debug/
 /unsloth_compiled_cache/*
 grpo_accessibility_project/unsloth_compiled_cache/*
 grpo_accessibility_project/scripts/unsloth_compiled_cache/*
+grpo_accessibility_project/scripts/grpo_trainer_lora_model/adapter_config.json

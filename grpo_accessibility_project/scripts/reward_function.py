@@ -1,6 +1,7 @@
 import re
 # from grpo_accessibility_project.utils.inference_client import query_reward_model_server # Old import
 from grpo_accessibility_project.utils.inference_client import query_gemini_api # New import
+import concurrent.futures
 
 def construct_reward_prompt(client_question: str, chatbot_a_code: str, generated_code: str, category: str) -> str:
     """
@@ -83,76 +84,89 @@ def parse_reward_model_output(text_output: str, reward_mapping: dict) -> int:
     print(f"Warning: Could not parse a recognized qualitative label from reward model output: '{text_output[:200]}...'. Using default score.")
     return reward_mapping["Default"]
 
+def _process_single_completion(
+    completion_code: str, 
+    client_question: str, 
+    chatbot_a_code: str, 
+    category_item: str, 
+    reward_mapping: dict
+) -> int:
+    """
+    Helper function to process a single completion item.
+    This will be called by each thread in the ThreadPoolExecutor.
+    """
+    reward_prompt_str = construct_reward_prompt(
+        client_question=client_question,
+        chatbot_a_code=chatbot_a_code,
+        generated_code=completion_code,
+        category=category_item
+    )
+    
+    gemini_generation_config = {
+        "temperature": 0.1,
+        "top_p": 0.9,
+        "max_output_tokens": 28672, 
+    }
+
+    # print(f"\n--- Querying Gemini Reward Model ---") # Less verbose in parallel
+    # print(f"Category: {category_item}")
+    
+    reward_model_output = query_gemini_api(
+        prompt=reward_prompt_str,
+        generation_config_override=gemini_generation_config
+    )
+    
+    # print(f"Reward Model Raw Output for category {category_item}: {reward_model_output}")
+    score = parse_reward_model_output(reward_model_output, reward_mapping)
+    # print(f"Assigned Score for category {category_item}: {score}")
+    return score
 
 def calculate_accessibility_reward(
     prompts: list, # List of prompt dictionaries (as prepared by data_loader)
     completions: list, # List of generated code strings from Qwen3
-    # reward_model_endpoint_url: str, # No longer needed for Gemini
     reward_mapping: dict,
-    # GRPOTrainer passes these automatically if they are columns in the dataset
     category: list = None,
     original_chatbot_A_code: list = None,
     client_question_text: list = None,
+    max_workers: int = None, # Optional: Number of parallel workers, defaults to Python's choice
     **kwargs 
 ) -> list:
     """
-    Calculates accessibility rewards for a batch of completions.
+    Calculates accessibility rewards for a batch of completions in parallel.
     This function will be called by the GRPOTrainer.
-    'prompts' here is a list of the actual prompt strings/message lists fed to the generator.
-    We need 'client_question_text' and 'original_chatbot_A_code' from the dataset items.
     """
-    scores = []
-    
-    # Ensure all necessary auxiliary data has the same batch size as completions
     batch_size = len(completions)
     if not (len(category) == batch_size and \
             len(original_chatbot_A_code) == batch_size and \
             len(client_question_text) == batch_size):
         raise ValueError("Mismatch in batch sizes of completions and auxiliary data (category, original_chatbot_A_code, client_question_text).")
 
-    for i in range(batch_size):
-        gen_code = completions[i]
-        
-        # Extract necessary parts from the corresponding dataset item
-        # The 'prompts' argument to this function is what the *generator* received.
-        # We need the specific fields we stored in our processed dataset.
-        current_client_question = client_question_text[i]
-        current_chatbot_a_code = original_chatbot_A_code[i]
-        current_category = category[i]
+    results = [None] * batch_size # Initialize results list to store scores in original order
 
-        reward_prompt_str = construct_reward_prompt(
-            client_question=current_client_question,
-            chatbot_a_code=current_chatbot_a_code,
-            generated_code=gen_code,
-            category=current_category
-        )
-        
-        # Define generation configuration for the Gemini reward model
-        # We want a relatively deterministic, focused output for the assessment label.
-        gemini_generation_config = {
-            "temperature": 0.1,
-            "top_p": 0.9,
-            "max_output_tokens": 28672, # Increased from 50 to align with inference_client.py and allow more room.
-            # Stop sequences are handled differently or might not be needed for short, direct answers from Gemini
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit tasks to the executor
+        future_to_index = {
+            executor.submit(
+                _process_single_completion,
+                completions[i],
+                client_question_text[i],
+                original_chatbot_A_code[i],
+                category[i],
+                reward_mapping # reward_mapping is shared across threads
+            ): i 
+            for i in range(batch_size)
         }
 
-        # print(f"\n--- Querying Gemini Reward Model (Sample {i+1}) ---")
-        # print(f"Category: {current_category}")
-        # print(f"Reward Prompt (first 200 chars): {reward_prompt_str[:200]}...")
-        
-        reward_model_output = query_gemini_api(
-            prompt=reward_prompt_str,
-            generation_config_override=gemini_generation_config
-        )
-        
-        # print(f"Reward Model Raw Output: {reward_model_output}")
+        for future in concurrent.futures.as_completed(future_to_index):
+            index = future_to_index[future]
+            try:
+                score = future.result()
+                results[index] = score
+            except Exception as exc:
+                print(f'Completion at index {index} generated an exception during reward calculation: {exc}')
+                results[index] = reward_mapping["Default"] # Assign default score on error
 
-        score = parse_reward_model_output(reward_model_output, reward_mapping)
-        scores.append(score)
-        # print(f"Assigned Score: {score}")
-        # print("--------------------------------------")
-
-    return scores
+    return results
 
 if __name__ == '__main__':
     # Example Usage (now uses Gemini API, ensure GEMINI_API_KEY is set)
@@ -170,6 +184,12 @@ if __name__ == '__main__':
             "category": "semantic_html",
             "original_chatbot_A_code": "<span>Not a heading</span>",
             "client_question_text": "Create a semantic heading."
+        },
+        {
+            "prompt": [{"role":"system","content":"..."},{"role":"user","content":"Client Q3..."}],
+            "category": "image_alt_text",
+            "original_chatbot_A_code": "<img src='image.jpg'>",
+            "client_question_text": "Make this image accessible."
         }
     ]
     # Extracting the fields as GRPOTrainer would pass them if they are columns
@@ -179,12 +199,11 @@ if __name__ == '__main__':
     
     # Dummy completions from the generator model
     test_completions = [
-        "<button aria-label='Accessible Button'>Click Me</button> <!-- Excellent Accessibility -->", # Reward model might add its reasoning
-        "<h1>Proper Semantic Heading</h1> <!-- Good Accessibility -->"
+        "<button aria-label='Accessible Button'>Click Me</button> <!-- Excellent Accessibility -->", 
+        "<h1>Proper Semantic Heading</h1> <!-- Good Accessibility -->",
+        "<img src='image.jpg' alt='A descriptive alt text'> <!-- Excellent Accessibility -->"
     ]
 
-    # Configuration (normally from grpo_config.yaml)
-    # dummy_reward_model_endpoint = "http://localhost:8001/generate" # No longer needed
     dummy_reward_mapping = {
         "Excellent Accessibility": 10,
         "Good Accessibility": 7,
@@ -194,28 +213,25 @@ if __name__ == '__main__':
         "Default": 0
     }
 
-    print("Testing calculate_accessibility_reward function with Gemini API...")
+    print("Testing calculate_accessibility_reward function with Gemini API (parallel)...")
     print("Ensure GEMINI_API_KEY environment variable is set.")
     
-    # To run this test, you'd need to:
-    # 1. Have inference_client.py in the grpo_accessibility_project/utils directory (updated for Gemini).
-    # 2. Set the GEMINI_API_KEY environment variable.
-
-    # print("\nAttempting to calculate scores using Gemini...")
-    # try:
-    #     calculated_scores = calculate_accessibility_reward(
-    #         prompts=test_prompts_data,
-    #         completions=test_completions,
-    #         # reward_model_endpoint_url no longer passed
-    #         reward_mapping=dummy_reward_mapping,
-    #         category=test_category,
-    #         original_chatbot_A_code=test_original_chatbot_A_code,
-    #         client_question_text=test_client_question_text
-    #     )
-    #     print(f"\nCalculated scores: {calculated_scores}")
-    # except Exception as e:
-    #     print(f"Error during calculate_accessibility_reward test: {e}")
-    #     print("This might be due to missing GEMINI_API_KEY or API issues.")
+    print("\nAttempting to calculate scores using Gemini (parallel)...")
+    try:
+        calculated_scores = calculate_accessibility_reward(
+            prompts=test_prompts_data, # prompts are not directly used by _process_single_completion but passed for consistency
+            completions=test_completions,
+            reward_mapping=dummy_reward_mapping,
+            category=test_category,
+            original_chatbot_A_code=test_original_chatbot_A_code,
+            client_question_text=test_client_question_text,
+            max_workers=2 # Example: use 2 worker threads
+        )
+        print(f"\nCalculated scores (parallel): {calculated_scores}")
+        # Expected: e.g. [10, 7, 10] if parsing works as before
+    except Exception as e:
+        print(f"Error during calculate_accessibility_reward test (parallel): {e}")
+        print("This might be due to missing GEMINI_API_KEY or API issues.")
 
     # Test parsing logic (remains the same)
     print("\nTesting parsing logic:")

@@ -32,7 +32,7 @@ weight_decay: 0.01
 warmup_ratio: 0.1
 lr_scheduler_type: "linear"
 optim: "adamw_8bit" # Unsloth default
-max_steps: 200 # Adjust for desired training length; start small for testing
+max_steps: 400 # Adjust for desired training length; start small for testing
 save_steps: 50 # Save checkpoints periodically
 
 # Sequence Lengths (Important: adjust based on dataset analysis and GPU memory)
