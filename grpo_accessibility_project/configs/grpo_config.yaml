@@ -25,14 +25,14 @@ dataset_path: "/home/ubuntu/Accessible_Qwen/grpo_accessibility_project/accessibi
 output_dir: "grpo_accessibility_output"
 logging_steps: 1
 per_device_train_batch_size: 4 # Adjust based on GPU memory
-gradient_accumulation_steps: 4 # Adjust based on GPU memory
-num_generations: 2             # Number of completions to generate per prompt; adjust based on GPU memory
+gradient_accumulation_steps: 8 # Adjust based on GPU memory
+num_generations: 4             # Number of completions to generate per prompt; adjust based on GPU memory
 learning_rate: 5.0e-6
 weight_decay: 0.01
 warmup_ratio: 0.1
 lr_scheduler_type: "linear"
 optim: "adamw_8bit" # Unsloth default
-max_steps: 400 # Adjust for desired training length; start small for testing
+max_steps: 200 # Adjust for desired training length; start small for testing
 save_steps: 50 # Save checkpoints periodically
 
 # Sequence Lengths (Important: adjust based on dataset analysis and GPU memory)
