@@ -3,7 +3,7 @@ reward_model_gpu_id: 1 # Used by reward_model_server.py to set CUDA_VISIBLE_DEVI
 policy_model_gpu_id: 0 # Used by the training script for the policy model
 
 # Model Configurations
-generator_model_name: "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
+generator_model_name: "Qwen/Qwen3-14B"
 reward_model_name: "gaotang/RM-R1-DeepSeek-Distilled-Qwen-14B" # Can be a HF Hub ID or a local path
 
 # TGI Server Configurations for Reward Model
