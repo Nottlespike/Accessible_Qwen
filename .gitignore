@@ -192,3 +192,6 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+/unsloth_compiled_cache/*
+grpo_accessibility_project/unsloth_compiled_cache/*
+grpo_accessibility_project/scripts/unsloth_compiled_cache/*

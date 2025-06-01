@@ -1,12 +1,22 @@
+# GPU Assignments
+reward_model_gpu_id: 1 # Used by reward_model_server.py to set CUDA_VISIBLE_DEVICES or --gpus for Docker
+policy_model_gpu_id: 0 # Used by the training script for the policy model
+
 # Model Configurations
 generator_model_name: "unsloth/Qwen3-4B-Base"
-reward_model_name: "gaotang/RM-R1-DeepSeek-Distilled-Qwen-14B"
-reward_model_quantization: "fp8" # Or other vLLM supported quantization
+reward_model_name: "gaotang/RM-R1-DeepSeek-Distilled-Qwen-14B" # Can be a HF Hub ID or a local path
 
-# vLLM Server Configurations
-reward_model_server_host: "localhost"
-reward_model_server_port: 8001 # Ensure this port is free
-# Add generator_model_server_port if running generator via separate vLLM server
+# TGI Server Configurations for Reward Model
+reward_model_server_host: "localhost" # Host for port mapping
+reward_model_server_port: 8002      # Host port to map to TGI's internal port (default 80)
+reward_model_dtype: "bfloat16"      # Data type for TGI (e.g., "bfloat16", "float16")
+reward_model_quantization: null     # TGI quantization (e.g., "bitsandbytes-nf4", "gptq", or null for none)
+tgi_num_shard: 1                    # Number of GPU shards for TGI (tensor parallel size)
+tgi_max_total_tokens: 4096          # Max total tokens for TGI
+tgi_shm_size: "1g"                  # Docker shared memory size for TGI (e.g., "1g", "2g")
+# Optional TGI parameters (can be added if needed for tuning)
+# tgi_max_input_length: 2048
+# tgi_max_batch_prefill_tokens: 4096 # Often set to max_total_tokens or similar
 
 # Dataset Path
 dataset_path: "/root/Accessible_Qwen/grpo_accessibility_project/accessibility_dataset.json"

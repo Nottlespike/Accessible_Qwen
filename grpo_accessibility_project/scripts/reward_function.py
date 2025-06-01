@@ -1,30 +1,52 @@
 import re
-from grpo_accessibility_project.utils.vllm_client import query_vllm_server # Ensure this path is correct if running standalone
+from grpo_accessibility_project.utils.inference_client import query_reward_model_server # Updated import
 
 def construct_reward_prompt(client_question: str, chatbot_a_code: str, generated_code: str, category: str) -> str:
     """
     Constructs the prompt for the reward model to evaluate accessibility.
     """
-    # Ensure the instruction for the reward model is clear about the expected output format.
+    # Define maximum character lengths for code sections to avoid exceeding model context limits
+    # These are approximate; tokenization is more accurate but adds complexity here.
+    # Assuming reward model context limit is ~4000 tokens, and other parts of prompt take ~200-300 tokens.
+    # Max prompt tokens for variable parts: ~3700 tokens. Avg 4 chars/token => ~14800 chars.
+    # Fixed prompt text is ~700 chars. client_question + category ~ a few hundred.
+    # Budget for code snippets:
+    max_chars_client_question = 1000 
+    max_chars_chatbot_a = 6500
+    max_chars_generated_code = 7000 # Slightly less to be safe with overall length
+
+    truncated_client_question = client_question
+    if len(client_question) > max_chars_client_question:
+        truncated_client_question = client_question[:max_chars_client_question] + "\\n...[TRUNCATED]"
+
+    truncated_chatbot_a_code = chatbot_a_code
+    if len(chatbot_a_code) > max_chars_chatbot_a:
+        truncated_chatbot_a_code = chatbot_a_code[:max_chars_chatbot_a] + "\\n...[TRUNCATED CODE]"
+
+    truncated_generated_code = generated_code
+    if len(generated_code) > max_chars_generated_code:
+        truncated_generated_code = generated_code[:max_chars_generated_code] + "\\n...[TRUNCATED CODE]"
+
+    # Ensure the instruction for the reward model is clear and strict about the expected output format.
     prompt = f"""[INST] You are an expert in web accessibility, focusing on WCAG 2.1 and WCAG 3.0 standards.
 Client Question:
-{client_question}
+{truncated_client_question}
 
 Chatbot A's Code (Less Accessible Baseline):
 ```html
-{chatbot_a_code}
+{truncated_chatbot_a_code}
 ```
 
 Generated Code (to be evaluated):
 ```html
-{generated_code}
+{truncated_generated_code}
 ```
 
 Based on the Client Question and Chatbot A's Code, critically evaluate the accessibility of the "Generated Code".
 Pay specific attention to the accessibility category: '{category}'.
 Consider aspects like semantic HTML, ARIA usage, keyboard navigation, focus management, color contrast (if applicable from code), and overall adherence to WCAG principles for the given category.
 
-Provide your overall assessment as one of the following exact qualitative labels:
+Your response MUST be one of the following exact qualitative labels and nothing else:
 - "Excellent Accessibility"
 - "Good Accessibility"
 - "Minor Accessibility Issues"
@@ -108,18 +130,19 @@ def calculate_accessibility_reward(
         # We want a relatively deterministic, focused output for the assessment label.
         reward_sampling_params = {
             "temperature": 0.1, 
-            "top_p": 0.9,
-            "max_tokens": 50, # Should be enough for the label and brief justification
-            "stop": ["\n", "<|im_end|>", "<|endoftext|>"] # Stop early after label
+            "top_p": 0.9, # TGI uses top_p
+            "max_new_tokens": 50, # TGI uses max_new_tokens
+            "stop_sequences": ["\n", "<|im_end|>", "<|endoftext|>"], # TGI uses stop_sequences
+            "do_sample": True # Ensure sampling is enabled for TGI
         }
 
         # print(f"\n--- Querying Reward Model (Sample {i+1}) ---")
         # print(f"Category: {current_category}")
         # print(f"Reward Prompt (first 200 chars): {reward_prompt_str[:200]}...")
         
-        reward_model_output = query_vllm_server(
+        reward_model_output = query_reward_model_server(
             prompt=reward_prompt_str,
-            endpoint_url=reward_model_endpoint_url,
+            endpoint_url=reward_model_endpoint_url, # This should be like http://host:port (client adds /generate)
             sampling_params=reward_sampling_params
         )
         
@@ -176,14 +199,13 @@ if __name__ == '__main__':
     print(f"Ensure a reward model server (e.g., gpt2 for testing) is running on {dummy_reward_model_endpoint}")
     
     # To run this test, you'd need to:
-    # 1. Have vllm_client.py in the grpo_accessibility_project/utils directory.
-    # 2. Start a vLLM server, e.g.:
-    #    python -m vllm.entrypoints.api_server --model gpt2 --host localhost --port 8001
+    # 1. Have inference_client.py in the grpo_accessibility_project/utils directory.
+    # 2. Start an SGLang server, e.g.:
+    #    python -m sglang.launch_server --model-path gpt2 --host localhost --port 8001
     #    (gpt2 won't give meaningful accessibility scores, but it will test the communication)
 
     # calculated_scores = calculate_accessibility_reward(
-    #     prompts=test_prompts_data, # The 'prompts' arg here is a bit of a misnomer for this direct test
-    #                                # GRPOTrainer passes the generator's prompts. We pass the structured data.
+    #     prompts=test_prompts_data, 
     #     completions=test_completions,
     #     reward_model_endpoint_url=dummy_reward_model_endpoint,
     #     reward_mapping=dummy_reward_mapping,
