@@ -1,6 +1,7 @@
 # Core ML/RL Libraries
 unsloth
-vllm
+# vllm # Removed as we are switching to Gemini API
+google-generativeai # For Gemini API
 trl
 transformers
 datasets

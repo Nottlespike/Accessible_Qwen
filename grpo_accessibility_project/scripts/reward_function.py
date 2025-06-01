@@ -1,5 +1,6 @@
 import re
-from grpo_accessibility_project.utils.inference_client import query_reward_model_server # Updated import
+# from grpo_accessibility_project.utils.inference_client import query_reward_model_server # Old import
+from grpo_accessibility_project.utils.inference_client import query_gemini_api # New import
 
 def construct_reward_prompt(client_question: str, chatbot_a_code: str, generated_code: str, category: str) -> str:
     """
@@ -86,10 +87,10 @@ def parse_reward_model_output(text_output: str, reward_mapping: dict) -> int:
 def calculate_accessibility_reward(
     prompts: list, # List of prompt dictionaries (as prepared by data_loader)
     completions: list, # List of generated code strings from Qwen3
-    reward_model_endpoint_url: str,
+    # reward_model_endpoint_url: str, # No longer needed for Gemini
     reward_mapping: dict,
     # GRPOTrainer passes these automatically if they are columns in the dataset
-    category: list = None, 
+    category: list = None,
     original_chatbot_A_code: list = None,
     client_question_text: list = None,
     **kwargs 
@@ -126,25 +127,22 @@ def calculate_accessibility_reward(
             category=current_category
         )
         
-        # Define sampling parameters for the reward model
+        # Define generation configuration for the Gemini reward model
         # We want a relatively deterministic, focused output for the assessment label.
-        reward_sampling_params = {
-            "temperature": 0.1, 
-            "top_p": 0.9, 
-            "max_tokens": 20, # Reduced for concise label output
-            "stop": ["\n", "<|im_end|>", "<|endoftext|>"], 
-            # "do_sample" is not an OpenAI API parameter; temperature controls sampling.
-            # The client will use these for the OpenAI /v1/completions payload.
+        gemini_generation_config = {
+            "temperature": 0.1,
+            "top_p": 0.9,
+            # "max_output_tokens": 10240, # Increased from 50 to align with inference_client.py and allow more room.
+            # Stop sequences are handled differently or might not be needed for short, direct answers from Gemini
         }
 
-        # print(f"\n--- Querying Reward Model (Sample {i+1}) ---")
+        # print(f"\n--- Querying Gemini Reward Model (Sample {i+1}) ---")
         # print(f"Category: {current_category}")
         # print(f"Reward Prompt (first 200 chars): {reward_prompt_str[:200]}...")
         
-        reward_model_output = query_reward_model_server(
+        reward_model_output = query_gemini_api(
             prompt=reward_prompt_str,
-            endpoint_url=reward_model_endpoint_url, # This should be like http://host:port (client adds /generate)
-            sampling_params=reward_sampling_params
+            generation_config_override=gemini_generation_config
         )
         
         # print(f"Reward Model Raw Output: {reward_model_output}")
@@ -157,7 +155,7 @@ def calculate_accessibility_reward(
     return scores
 
 if __name__ == '__main__':
-    # Example Usage (requires a running reward model server and vllm_client.py)
+    # Example Usage (now uses Gemini API, ensure GEMINI_API_KEY is set)
     
     # Dummy data for testing
     test_prompts_data = [ # This structure matches what GRPOTrainer would get from our dataset
@@ -186,7 +184,7 @@ if __name__ == '__main__':
     ]
 
     # Configuration (normally from grpo_config.yaml)
-    dummy_reward_model_endpoint = "http://localhost:8001/generate" # Replace if your server is elsewhere
+    # dummy_reward_model_endpoint = "http://localhost:8001/generate" # No longer needed
     dummy_reward_mapping = {
         "Excellent Accessibility": 10,
         "Good Accessibility": 7,
@@ -196,27 +194,30 @@ if __name__ == '__main__':
         "Default": 0
     }
 
-    print("Testing calculate_accessibility_reward function...")
-    print(f"Ensure a reward model server (e.g., gpt2 for testing) is running on {dummy_reward_model_endpoint}")
+    print("Testing calculate_accessibility_reward function with Gemini API...")
+    print("Ensure GEMINI_API_KEY environment variable is set.")
     
     # To run this test, you'd need to:
-    # 1. Have inference_client.py in the grpo_accessibility_project/utils directory.
-    # 2. Start an SGLang server, e.g.:
-    #    python -m sglang.launch_server --model-path gpt2 --host localhost --port 8001
-    #    (gpt2 won't give meaningful accessibility scores, but it will test the communication)
+    # 1. Have inference_client.py in the grpo_accessibility_project/utils directory (updated for Gemini).
+    # 2. Set the GEMINI_API_KEY environment variable.
 
-    # calculated_scores = calculate_accessibility_reward(
-    #     prompts=test_prompts_data, 
-    #     completions=test_completions,
-    #     reward_model_endpoint_url=dummy_reward_model_endpoint,
-    #     reward_mapping=dummy_reward_mapping,
-    #     category=test_category,
-    #     original_chatbot_A_code=test_original_chatbot_A_code,
-    #     client_question_text=test_client_question_text
-    # )
-    # print(f"\nCalculated scores: {calculated_scores}")
+    # print("\nAttempting to calculate scores using Gemini...")
+    # try:
+    #     calculated_scores = calculate_accessibility_reward(
+    #         prompts=test_prompts_data,
+    #         completions=test_completions,
+    #         # reward_model_endpoint_url no longer passed
+    #         reward_mapping=dummy_reward_mapping,
+    #         category=test_category,
+    #         original_chatbot_A_code=test_original_chatbot_A_code,
+    #         client_question_text=test_client_question_text
+    #     )
+    #     print(f"\nCalculated scores: {calculated_scores}")
+    # except Exception as e:
+    #     print(f"Error during calculate_accessibility_reward test: {e}")
+    #     print("This might be due to missing GEMINI_API_KEY or API issues.")
 
-    # Test parsing logic
+    # Test parsing logic (remains the same)
     print("\nTesting parsing logic:")
     outputs_to_test = {
         "Excellent Accessibility. The code uses all correct ARIA attributes.": 10,

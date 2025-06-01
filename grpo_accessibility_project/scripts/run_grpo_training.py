@@ -22,29 +22,13 @@ from functools import partial, update_wrapper
 # Adjust import paths based on your project structure
 from grpo_accessibility_project.scripts.data_loader import load_and_process_accessibility_dataset
 from grpo_accessibility_project.scripts.reward_function import calculate_accessibility_reward
-from grpo_accessibility_project.scripts.reward_model_server import start_reward_model_server # Renamed import
+# Removed import for start_reward_model_server as it's no longer used with Gemini
 
-# Global variable to store the reward server process
-reward_server_process = None
-
-def cleanup_reward_server():
-    global reward_server_process
-    if reward_server_process and reward_server_process.poll() is None:
-        print("Terminating reward model server...")
-        # Send SIGTERM first, then SIGKILL if it doesn't terminate
-        reward_server_process.terminate()
-        try:
-            reward_server_process.wait(timeout=10) # Wait 10 seconds
-            print("Reward model server terminated gracefully.")
-        except subprocess.TimeoutExpired:
-            print("Reward model server did not terminate gracefully, sending SIGKILL.")
-            reward_server_process.kill()
-            reward_server_process.wait()
-            print("Reward model server killed.")
-        reward_server_process = None
+# Global variable for reward server process is no longer needed
+# Cleanup function for reward server is no longer needed
 
 def main():
-    global reward_server_process
+    # global reward_server_process # Removed as it's no longer needed
 
     # Load configuration
     config_path = os.path.join(os.path.dirname(__file__), '..', 'configs', 'grpo_config.yaml')
@@ -53,37 +37,14 @@ def main():
 
     # --- GPU Configuration ---
     import torch # For checking CUDA availability
-    reward_model_gpu_id = str(config.get('reward_model_gpu_id', 0)) # Default to 0
-    policy_model_gpu_id = str(config.get('policy_model_gpu_id', 1)) # Default to 1
+    # reward_model_gpu_id is no longer needed as Gemini is used.
+    policy_model_gpu_id = str(config.get('policy_model_gpu_id', 0)) # Default to 0 if only one GPU or for policy
     print(f"--- GPU Configuration ---")
-    print(f"Reward Model will be targeted to GPU: {reward_model_gpu_id}")
     print(f"Policy Model & Training will be targeted to GPU: {policy_model_gpu_id}")
 
-    # --- 1. Start Reward Model Server ---
-    print("\n--- Starting Reward Model Server ---")
-    # Updated to use start_reward_model_server with TGI parameters from config
-    reward_server_process = start_reward_model_server(
-        model_name=config['reward_model_name'],
-        host=config['reward_model_server_host'],
-        port=config['reward_model_server_port'],
-        dtype=config['reward_model_dtype'],
-        num_shard=config['tgi_num_shard'],
-        max_total_tokens=config['tgi_max_total_tokens'],
-        shm_size=config['tgi_shm_size'],
-        log_level=config.get('tgi_log_level', "info"), # Add tgi_log_level to config or default
-        target_gpu_id=reward_model_gpu_id, # Already a string, start_reward_model_server handles formatting for docker
-        quantize=config.get('reward_model_quantization', None), # Get from config, default to None
-        # Optional TGI params from config if they exist
-        max_input_length=config.get('tgi_max_input_length', None),
-        max_batch_prefill_tokens=config.get('tgi_max_batch_prefill_tokens', None)
-    )
-    if not reward_server_process:
-        print("Failed to start TGI reward model server. Exiting.")
-        return
-    
-    # The inference_client.py will append the correct OpenAI API path (e.g., /v1/completions)
-    reward_model_endpoint = f"http://{config['reward_model_server_host']}:{config['reward_model_server_port']}"
-    print(f"Reward model server base URL: {reward_model_endpoint}")
+    # --- 1. Start Reward Model Server --- (Section removed as Gemini is used)
+    # print("\n--- Reward Model Server is NOT started (using Gemini API) ---")
+    # reward_model_endpoint is no longer needed.
 
     try:
         # --- Set CUDA_VISIBLE_DEVICES for Policy Model & Training ---
@@ -92,21 +53,17 @@ def main():
         
         # Force PyTorch to recognize the change immediately and set the device for subsequent operations
         if torch.cuda.is_available():
-            if torch.cuda.device_count() == 1: # Should be 1 after CUDA_VISIBLE_DEVICES is set
+            if torch.cuda.device_count() >= 1: # Check if at least one GPU is visible
                 torch.cuda.set_device(0) # PyTorch will see this as device 0 within the visible set
                 print(f"PyTorch CUDA is available. Device count visible: {torch.cuda.device_count()}. Set to use visible device 0 (originally GPU {policy_model_gpu_id}).")
                 print(f"Current PyTorch CUDA device: {torch.cuda.current_device()} ({torch.cuda.get_device_name(torch.cuda.current_device())})")
-            elif torch.cuda.device_count() > 1:
-                print(f"Warning: CUDA_VISIBLE_DEVICES set to '{policy_model_gpu_id}', but PyTorch sees {torch.cuda.device_count()} devices. This might lead to unexpected behavior. Attempting to set to the first visible device.")
-                torch.cuda.set_device(0) # Default to the first one it sees
-                print(f"Current PyTorch CUDA device: {torch.cuda.current_device()} ({torch.cuda.get_device_name(torch.cuda.current_device())})")
             else: # No GPUs visible or an issue
                 print("Error: No CUDA devices visible to PyTorch after setting CUDA_VISIBLE_DEVICES. Check GPU setup and policy_model_gpu_id.")
-                cleanup_reward_server()
+                # cleanup_reward_server() # No server to cleanup
                 return
         else:
             print("Error: PyTorch CUDA is NOT available after setting CUDA_VISIBLE_DEVICES. Check GPU setup.")
-            cleanup_reward_server()
+            # cleanup_reward_server() # No server to cleanup
             return
 
         # --- 2. Initialize Generator Model and Tokenizer (Unsloth) ---
@@ -130,20 +87,6 @@ def main():
         )
         
         # --- 3. Adapt Chat Template for Generator ---
-        # The dataset provides context_messages[0] as system, context_messages[1] as user.
-        # Qwen3 format:
-        # <|im_start|>system
-        # {system_message}<|im_end|>
-        # <|im_start|>user
-        # {user_message}<|im_end|>
-        # <|im_start|>assistant
-        # (This is where the model generates)
-        # We need to ensure the tokenizer's chat_template handles this.
-        # Unsloth's FastLanguageModel usually sets up a good default template.
-        # If specific customization is needed:
-        # Explicitly set the chat template for Qwen3
-        # Reference: https://huggingface.co/docs/transformers/main/en/chat_templating
-        # And Qwen1.5/Qwen2 model cards often specify this format.
         qwen_chat_template = (
             "{% for message in messages %}"
                 "{% if message['role'] == 'system' %}"
@@ -160,20 +103,12 @@ def main():
         )
         tokenizer.chat_template = qwen_chat_template
         print("Successfully set Qwen chat template for the tokenizer.")
-        # For Qwen, often no explicit template change is needed if using HF auto-tokenization conventions.
-        # The `prompt` field in our dataset is already a list of messages.
-        
-        # Set the main system prompt for the generator (will be used by GRPOTrainer if not overridden by dataset)
-        # However, our dataset items already contain a system prompt in `context_messages`.
-        # The GRPOTrainer will use the `prompt` column from the dataset, which is `generator_prompt_messages`.
-        # So, a separate `config['generator_system_prompt']` might not be directly used by TRL's SFT/GRPO
-        # if the dataset itself provides system messages. We'll rely on the dataset's system prompt.
 
         # --- 4. Load and Process Dataset ---
         print("\n--- Loading and Processing Dataset ---")
         train_dataset = load_and_process_accessibility_dataset(
             dataset_path=config['dataset_path'],
-            tokenizer=tokenizer, # Pass tokenizer for length checking if desired
+            tokenizer=tokenizer, 
             max_prompt_length=config['max_prompt_length']
         )
         print(f"Loaded dataset with {len(train_dataset)} samples.")
@@ -184,26 +119,18 @@ def main():
         # --- 5. Set up GRPO Configuration and Trainer ---
         print("\n--- Setting up GRPO Trainer ---")
         
-        # Define sampling parameters for the generator model during GRPO rollouts
-        # These are passed to the `generate` call within GRPOTrainer
-        # Note: Unsloth's GRPOTrainer might have its own way of handling vLLM sampling params.
-        # For standard TRL GRPOTrainer, you'd set `generation_kwargs`.
-        # For Unsloth, it might be through `vllm_sampling_params` in GRPOConfig.
-        
-        # Check TRL/Unsloth version for GRPOTrainer's vLLM integration.
-        # Assuming `vllm_sampling_params` is the way for Unsloth's GRPOTrainer.
         grpo_vllm_sampling_params = SamplingParams(
-            temperature=1.0, # Higher temperature for more diverse generations during training
+            temperature=1.0, 
             top_p=1.0,
-            top_k=-1, # -1 means no top-k filtering
+            top_k=-1, 
             max_tokens=config['max_completion_length'],
-            stop=[tokenizer.eos_token, "<|im_end|>"], # Ensure model stops appropriately
-            include_stop_str_in_output=True, # Usually True for GRPO
+            stop=[tokenizer.eos_token, "<|im_end|>"], 
+            include_stop_str_in_output=True, 
         )
 
         training_args = GRPOConfig(
             output_dir=config['output_dir'],
-            num_train_epochs=config.get('num_train_epochs', 1), # Default to 1 epoch if not specified, max_steps will override
+            num_train_epochs=config.get('num_train_epochs', 1), 
             max_steps=config['max_steps'],
             per_device_train_batch_size=config['per_device_train_batch_size'],
             gradient_accumulation_steps=config['gradient_accumulation_steps'],
@@ -214,43 +141,29 @@ def main():
             weight_decay=config['weight_decay'],
             lr_scheduler_type=config['lr_scheduler_type'],
             warmup_ratio=config['warmup_ratio'],
-            report_to="none", # Or "wandb", "tensorboard"
-            remove_unused_columns=False, # Important for passing custom columns to reward fn
+            report_to="none", 
+            remove_unused_columns=False, 
             
-            # GRPO specific arguments
             num_generations=config['num_generations'],
             max_prompt_length=config['max_prompt_length'],
             max_completion_length=config['max_completion_length'],
-            temperature=1.0, # Rollout temperature for policy model
+            temperature=1.0, 
             
-            # For Unsloth's GRPOTrainer with vLLM backend for generator
             vllm_sampling_params=grpo_vllm_sampling_params,
-            # If not using Unsloth's vLLM integration directly in GRPOTrainer,
-            # you might need `generation_kwargs` for HF generate.
-            dataloader_drop_last=True, # Try dropping the last batch if incomplete
+            dataloader_drop_last=True, 
         )
 
-        # The reward function needs access to the reward_model_endpoint and reward_mapping.
-        # We will use functools.partial to bind these arguments to the reward function,
-        # as Unsloth's GRPOTrainer might not pass reward_kwargs as positional arguments.
-        
+        # The reward function now uses Gemini and only needs reward_mapping.
         fixed_reward_args = {
-            "reward_model_endpoint_url": reward_model_endpoint,
             "reward_mapping": config['reward_mapping']
+            # "reward_model_endpoint_url" is no longer needed
         }
 
-        # Create a partial function with reward_model_endpoint_url and reward_mapping pre-filled.
-        # The GRPOTrainer will then call this partial function with:
-        # partial_calculate_accessibility_reward(prompts, completions, category=..., original_chatbot_A_code=..., etc.)
-        # The other arguments (category, etc.) are expected to be passed by the trainer
-        # if they are columns in the dataset.
         partial_calculate_accessibility_reward = partial(
             calculate_accessibility_reward,
-            reward_model_endpoint_url=fixed_reward_args["reward_model_endpoint_url"],
+            # reward_model_endpoint_url is removed
             reward_mapping=fixed_reward_args["reward_mapping"]
         )
-        # Copy metadata (like __name__) from the original function to the partial object
-        # This is needed because UnslothGRPOTrainer inspects func.__name__
         update_wrapper(partial_calculate_accessibility_reward, calculate_accessibility_reward)
 
         trainer = GRPOTrainer(
@@ -258,12 +171,7 @@ def main():
             args=training_args,
             tokenizer=tokenizer,
             train_dataset=train_dataset,
-            reward_funcs=[partial_calculate_accessibility_reward], # Use the partial function
-            # reward_kwargs is commented out as its arguments are now bound by `partial`.
-            # If GRPOTrainer uses reward_kwargs for other purposes, it could be reinstated,
-            # but it was not correctly supplying these specific arguments to calculate_accessibility_reward.
-            # reward_kwargs=fixed_reward_args, 
-            # processing_class=tokenizer, # Unsloth's GRPOTrainer might need this
+            reward_funcs=[partial_calculate_accessibility_reward], 
         )
         
         # --- 6. Run Training ---
@@ -275,7 +183,6 @@ def main():
         print("\n--- Saving Final Model ---")
         final_save_path = os.path.join(config['output_dir'], "final_model")
         trainer.save_model(final_save_path)
-        # tokenizer.save_pretrained(final_save_path) # Unsloth's save_model might handle this
         print(f"Final model saved to {final_save_path}")
 
     except Exception as e:
@@ -283,17 +190,17 @@ def main():
         import traceback
         traceback.print_exc()
     finally:
-        # --- 8. Cleanup Reward Server ---
-        print("\n--- Cleaning up Reward Model Server ---")
-        cleanup_reward_server()
+        # --- 8. Cleanup Reward Server --- (No longer needed)
+        print("\n--- Training process finished/terminated. No local reward server to clean up. ---")
+        # cleanup_reward_server() # Removed
 
 if __name__ == "__main__":
     # sys.path modification moved to the top of the script.
     
-    # Handle Ctrl+C for graceful shutdown of reward server
+    # Handle Ctrl+C for graceful shutdown (reward server part removed)
     def signal_handler(sig, frame):
-        print('Ctrl+C detected. Shutting down...')
-        cleanup_reward_server()
+        print('Ctrl+C detected. Exiting script...')
+        # cleanup_reward_server() # Removed
         sys.exit(0)
     signal.signal(signal.SIGINT, signal_handler)
 

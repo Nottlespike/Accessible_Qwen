@@ -1,25 +1,25 @@
 # GPU Assignments
-reward_model_gpu_id: 1 # Used by reward_model_server.py to set CUDA_VISIBLE_DEVICES or --gpus for Docker
+# reward_model_gpu_id: 1 # Removed, Gemini is cloud-based
 policy_model_gpu_id: 0 # Used by the training script for the policy model
 
 # Model Configurations
 generator_model_name: "Qwen/Qwen3-4B"
-reward_model_name: "gaotang/RM-R1-DeepSeek-Distilled-Qwen-14B" # Can be a HF Hub ID or a local path
+reward_model_name: "gemini-2.5-flash-preview-05-20" # Updated to Gemini model
 
-# TGI Server Configurations for Reward Model
-reward_model_server_host: "localhost" # Host for port mapping
-reward_model_server_port: 8002      # Host port to map to TGI's internal port (default 80)
-reward_model_dtype: "bfloat16"      # Data type for TGI (e.g., "bfloat16", "float16")
-reward_model_quantization: null     # TGI quantization (e.g., "bitsandbytes-nf4", "gptq", or null for none)
-tgi_num_shard: 1                    # Number of GPU shards for TGI (tensor parallel size)
-tgi_max_total_tokens: 4096          # Max total tokens for TGI
-tgi_shm_size: "1g"                  # Docker shared memory size for TGI (e.g., "1g", "2g")
-# Optional TGI parameters (can be added if needed for tuning)
+# TGI Server Configurations for Reward Model (Removed as using Gemini API)
+# reward_model_server_host: "localhost"
+# reward_model_server_port: 8002
+# reward_model_dtype: "bfloat16"
+# reward_model_quantization: null
+# tgi_num_shard: 1
+# tgi_max_total_tokens: 4096 
+# tgi_shm_size: "1g"
 # tgi_max_input_length: 2048
-# tgi_max_batch_prefill_tokens: 4096 # Often set to max_total_tokens or similar
+# tgi_max_batch_prefill_tokens: 4096
 
 # Dataset Path
-dataset_path: "/root/Accessible_Qwen/grpo_accessibility_project/accessibility_dataset.json"
+# Ensure this path is correct for your environment.
+dataset_path: "/home/ubuntu/Accessible_Qwen/grpo_accessibility_project/accessibility_dataset.json"
 
 # GRPO Training Hyperparameters
 output_dir: "grpo_accessibility_output"
